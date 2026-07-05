@@ -556,6 +556,9 @@
   <div class="screen" id="screen-config">
     <div>
       <div class="logo" style="font-size:2rem;">Configuration</div>
+      <div style="text-align:center; margin-top:4px;">
+        <button onclick="openApiKeyModal()" style="background:none; border:none; color:var(--text-muted); font-size:0.78rem; text-decoration:underline; cursor:pointer;">🔑 Modifier ma clé API</button>
+      </div>
     </div>
 
     <div class="card">
@@ -813,11 +816,102 @@
 
 </div>
 
+<!-- ===== MODAL: CLÉ API OPENAI ===== -->
+<div id="apikey-overlay" style="display:none; position:fixed; inset:0; z-index:1000; background:rgba(15,14,23,0.85); backdrop-filter: blur(4px); align-items:center; justify-content:center; padding:20px;">
+  <div style="background:var(--card); border-radius:var(--radius); max-width:420px; width:100%; padding:28px 24px; position:relative; box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+    <button id="apikey-close-btn" onclick="closeApiKeyModal()" style="position:absolute; top:14px; right:14px; background:none; border:none; color:var(--text-muted); font-size:1.4rem; cursor:pointer; line-height:1;">✕</button>
+    <div style="font-family:'Boogaloo',cursive; font-size:1.5rem; color:var(--accent); margin-bottom:10px;">🔑 Clé API OpenAI</div>
+    <p style="font-size:0.9rem; color:var(--text-muted); line-height:1.5; margin-bottom:16px;">
+      Undercover utilise l'IA d'OpenAI pour générer les thèmes et les mots. Colle ici ta propre clé API — elle reste uniquement sur ton appareil (stockée dans ton navigateur), elle n'est jamais envoyée ailleurs qu'à OpenAI.
+    </p>
+    <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" style="display:inline-block; font-size:0.85rem; color:var(--civil); text-decoration:underline; margin-bottom:16px;">
+      Obtenir une clé API OpenAI →
+    </a>
+    <div style="position:relative; margin-bottom:10px;">
+      <input id="apikey-input" type="password" placeholder="sk-..." autocomplete="off" spellcheck="false"
+        style="width:100%; padding:12px 44px 12px 14px; border-radius:12px; border:1px solid rgba(255,255,255,0.15); background:var(--bg); color:var(--text); font-size:0.95rem;">
+      <button id="apikey-toggle-btn" onclick="toggleApiKeyVisibility()" type="button"
+        style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:1.1rem;">👁️</button>
+    </div>
+    <div id="apikey-error" style="display:none; color:var(--traitor); font-size:0.82rem; margin-bottom:10px;"></div>
+    <button class="btn-main" style="width:100%;" onclick="saveApiKeyFromModal()">Enregistrer</button>
+  </div>
+</div>
+
+<script>
+// =====================
+// CLÉ API OPENAI (stockée localement, jamais dans le code)
+// =====================
+const OPENAI_KEY_STORAGE = 'uc_openai_api_key';
+
+function getOpenAIKey() {
+  return (localStorage.getItem(OPENAI_KEY_STORAGE) || '').trim();
+}
+
+function saveOpenAIKey(key) {
+  localStorage.setItem(OPENAI_KEY_STORAGE, key.trim());
+}
+
+function hasOpenAIKey() {
+  return getOpenAIKey().length > 0;
+}
+
+function openApiKeyModal() {
+  const overlay = document.getElementById('apikey-overlay');
+  const input = document.getElementById('apikey-input');
+  const err = document.getElementById('apikey-error');
+  err.style.display = 'none';
+  input.value = getOpenAIKey();
+  overlay.style.display = 'flex';
+  // Le bouton fermer n'est utile que si une clé est déjà configurée
+  document.getElementById('apikey-close-btn').style.visibility = hasOpenAIKey() ? 'visible' : 'hidden';
+}
+
+function closeApiKeyModal() {
+  if (!hasOpenAIKey()) return; // on ne laisse pas fermer sans clé configurée
+  document.getElementById('apikey-overlay').style.display = 'none';
+}
+
+function toggleApiKeyVisibility() {
+  const input = document.getElementById('apikey-input');
+  const btn = document.getElementById('apikey-toggle-btn');
+  if (input.type === 'password') {
+    input.type = 'text';
+    btn.textContent = '🙈';
+  } else {
+    input.type = 'password';
+    btn.textContent = '👁️';
+  }
+}
+
+function saveApiKeyFromModal() {
+  const input = document.getElementById('apikey-input');
+  const err = document.getElementById('apikey-error');
+  const value = input.value.trim();
+  if (!value) {
+    err.textContent = 'Merci de coller une clé API.';
+    err.style.display = 'block';
+    return;
+  }
+  if (!value.startsWith('sk-')) {
+    err.textContent = 'Cette clé ne ressemble pas à une clé OpenAI valide (elle doit commencer par "sk-").';
+    err.style.display = 'block';
+    return;
+  }
+  saveOpenAIKey(value);
+  document.getElementById('apikey-overlay').style.display = 'none';
+}
+
+// Popup automatique si aucune clé n'est configurée au chargement
+document.addEventListener('DOMContentLoaded', () => {
+  if (!hasOpenAIKey()) openApiKeyModal();
+});
+</script>
+
 <script>
 // =====================
 // CONFIG
 // =====================
-const OPENAI_KEY = "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";
 const MAX_STORED_WORDS = 100;
 const MAX_STORED_THEMES = 40;
 
@@ -1113,6 +1207,10 @@ function onToggleRoles() {
 // START GAME
 // =====================
 async function startGame() {
+  if (!hasOpenAIKey()) {
+    openApiKeyModal();
+    return;
+  }
   document.getElementById('config-error').style.display = 'none';
   showScreen('screen-loading');
 
@@ -1594,11 +1692,16 @@ function showReveal() {
 // OPENAI API
 // =====================
 async function callOpenAI(prompt) {
+  const apiKey = getOpenAIKey();
+  if (!apiKey) {
+    openApiKeyModal();
+    throw new Error('Clé API OpenAI manquante');
+  }
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${OPENAI_KEY}`,
+      'Authorization': `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
       model: 'gpt-4o-mini',
@@ -1610,7 +1713,10 @@ async function callOpenAI(prompt) {
     })
   });
 
-  if (!response.ok) throw new Error('API error ' + response.status);
+  if (!response.ok) {
+    if (response.status === 401) openApiKeyModal();
+    throw new Error('API error ' + response.status);
+  }
   const data = await response.json();
   return data.choices[0].message.content.trim();
 }
